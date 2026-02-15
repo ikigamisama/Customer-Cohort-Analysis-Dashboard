@@ -129,28 +129,39 @@ class Chart(Data):
         self.theme = theme
 
     def calculate_cohort_data(self):
-        df_cohort = self.filtered_df.groupby(['cohort_month', 'order_month']).agg({
-            'cust_id': 'nunique'
-        }).reset_index()
+        customer_first_order = self.filtered_df.groupby(
+            'cust_id')['order_date'].min().reset_index()
+        customer_first_order.columns = ['cust_id', 'first_order_date']
+        customer_first_order['actual_cohort_month'] = customer_first_order['first_order_date'].dt.to_period(
+            'M')
 
-        # Calculate cohort age
-        df_cohort['cohort_age'] = (
-            df_cohort['order_month'].astype(str).str[:7].apply(lambda x: pd.Period(x, freq='M')) -
-            df_cohort['cohort_month']
-        ).apply(lambda x: x.n)
-
-        # Get cohort sizes
-        cohort_sizes = self.filtered_df.groupby(
-            'cohort_month')['cust_id'].nunique()
-
-        # Calculate retention rate
-        df_cohort = df_cohort.merge(
-            cohort_sizes.rename('cohort_size'),
-            left_on='cohort_month',
-            right_index=True
+        df_with_cohort = self.filtered_df.merge(
+            customer_first_order[['cust_id', 'actual_cohort_month']], on='cust_id', how='left')
+        df_cohort = (
+            df_with_cohort.groupby(['actual_cohort_month', 'order_month'])[
+                'cust_id']
+            .nunique()
+            .reset_index(name='active_customers')
         )
+        df_cohort.columns = ['cohort_month', 'order_month', 'active_customers']
+        df_cohort['cohort_age'] = (
+            (df_cohort['order_month'].dt.year - df_cohort['cohort_month'].dt.year) * 12 +
+            (df_cohort['order_month'].dt.month -
+             df_cohort['cohort_month'].dt.month)
+        )
+
+        cohort_sizes = df_cohort[df_cohort['cohort_age'] == 0][[
+            'cohort_month', 'active_customers']].copy()
+        cohort_sizes.columns = ['cohort_month', 'cohort_size']
+
+        df_cohort = df_cohort.merge(
+            cohort_sizes, on='cohort_month', how='left')
+
         df_cohort['retention_rate'] = (
-            df_cohort['cust_id'] / df_cohort['cohort_size']) * 100
+            df_cohort['active_customers'] / df_cohort['cohort_size'] * 100
+        )
+
+        df_cohort = df_cohort.dropna(subset=['cohort_size'])
 
         return df_cohort
 
@@ -178,34 +189,53 @@ class Chart(Data):
     def plot_cohort_retention_heatmap(self):
         df_cohort = self.calculate_cohort_data()
 
+        top_cohorts = df_cohort[df_cohort['cohort_age'] == 0].nlargest(20, 'cohort_size')[
+            'cohort_month']
+        df_cohort_filtered = df_cohort[df_cohort['cohort_month'].isin(
+            top_cohorts)]
+
         # Pivot for heatmap
-        cohort_pivot = df_cohort.pivot_table(
+        cohort_pivot = df_cohort_filtered.pivot_table(
             index='cohort_month',
             columns='cohort_age',
-            values='retention_rate'
+            values='retention_rate',
+            aggfunc='first'
         )
 
-        # Create heatmap
-        fig = go.Figure(data=go.Heatmap(
-            z=cohort_pivot.values,
-            x=cohort_pivot.columns,
+        max_age = min(24, cohort_pivot.columns.max())
+        cohort_pivot = cohort_pivot.loc[:, cohort_pivot.columns <= max_age]
+        cohort_pivot = cohort_pivot.sort_index(ascending=False)
+
+        text_display = cohort_pivot.round(1).astype(str) + '%'
+        text_display = text_display.replace('nan%', '')
+
+        fig = px.imshow(
+            cohort_pivot,
+            labels=dict(x="Cohort Age (Months)",
+                        y="Cohort Month", color="Retention %"),
+            x=cohort_pivot.columns.tolist(),
             y=[str(idx) for idx in cohort_pivot.index],
-            colorscale='Teal',
-            text=np.round(cohort_pivot.values, 1),
-            texttemplate='%{text}%',
-            textfont={"size": 10},
-            colorbar=dict(title="Retention %")
-        ))
+            color_continuous_scale='Teal',
+            aspect='auto',
+            text_auto=False
+        )
+
+        fig.update_traces(
+            text=text_display.values,
+            texttemplate='%{text}',
+            textfont={"size": 9}
+        )
 
         title_style = get_title_style()
         fig.update_layout(
             title={
-                'text': "Customer Retention by Cohort Month",
+                'text': "Customer Retention by Cohort Month (Top 20 Cohorts)",
                 **title_style
             },
             xaxis_title="Cohort Age (Months)",
             yaxis_title="Cohort Month",
-            height=500
+            height=500,
+            coloraxis_colorbar=dict(title="Retention %")
         )
 
         return fig

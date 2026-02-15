@@ -215,14 +215,12 @@ with tab1:
 
     col1, col2 = st.columns(2)
     with col1:
-        fig = c.plot_cohort_retention_heatmap()
-        st.plotly_chart(fig, width='stretch')
-    with col2:
-        fig = c.plot_cohort_size_distribution()
-        st.plotly_chart(fig, width='stretch')
 
-    fig = c.plot_average_retention_curve()
-    st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(c.plot_cohort_retention_heatmap(), width='stretch')
+    with col2:
+        st.plotly_chart(c.plot_cohort_size_distribution(), width='stretch')
+
+    st.plotly_chart(c.plot_average_retention_curve(), width='stretch')
 
 with tab2:
     st.markdown("### 💰 Revenue Analysis")
