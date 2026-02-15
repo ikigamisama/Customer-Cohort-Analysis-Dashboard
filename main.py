@@ -201,13 +201,12 @@ with col8:
     """, unsafe_allow_html=True)
 
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Cohort Analysis",
     "💰 Revenue Analysis",
     "👥 Customer Behavior",
     "🌍 Regional & Demographics",
     "📦 Order Status & Operations",
-    "🤖 Cohort Prediction"
 ])
 
 with tab1:
@@ -274,6 +273,3 @@ with tab5:
 
     st.plotly_chart(c.plot_cancellation_analysis(), width='stretch')
     st.plotly_chart(c.plot_order_heatmap(), width='stretch')
-
-with tab6:
-    st.markdown("### 🤖 Cohort Prediction")
