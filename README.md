@@ -2,6 +2,8 @@
 
 > A comprehensive, interactive analytics platform for understanding customer behavior, predicting retention, and maximizing lifetime value through cohort analysis.
 
+**Live Dashboard:** [https://customer-cohort-analysis-dashboard-iki.streamlit.app](https://customer-cohort-analysis-dashboard-iki.streamlit.app)
+
 ---
 
 ## 🎯 Overview
